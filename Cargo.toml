@@ -1,0 +1,9 @@
+[workspace]
+
+members = [
+    "aoc2022"
+]
+
+[profile.dev]
+opt-level = 1
+

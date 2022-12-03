@@ -2,49 +2,61 @@ use clap::Parser;
 use std::path::PathBuf;
 use std::fs;
 
-#[derive(Parser)]
-struct Cli {
-    input: Option<PathBuf>
+#[derive(Copy, Clone)]
+enum Move {
+    Rock,
+    Paper,
+    Scissors
 }
 
-fn get_rps(input: &str) -> Result<String, String> {
-    match input {
-        "A" | "X" => Ok(String::from("Rock")),
-        "B" | "Y" => Ok(String::from("Paper")),
-        "C" | "Z" => Ok(String::from("Scissors")),
-        _ => Err(String::from("Invalid Input"))
+impl Move {
+    fn from_str(input: &str) -> Result<Move, String> {
+        match input {
+            "A" | "X" => Ok(Move::Rock),
+            "B" | "Y" => Ok(Move::Paper),
+            "C" | "Z" => Ok(Move::Scissors),
+            _ => Err(String::from("Invalid Input"))
+        }
+    }
+
+    fn from_outcome(&self, outcome: &str) -> Result<Move, String> {
+        match (self, outcome) {
+            // X > lose, Y > draw, Z > win
+            (Move::Rock, "X") => Ok(Move::Scissors),
+            (Move::Rock, "Z") => Ok(Move::Paper),
+            (Move::Paper, "X") => Ok(Move::Rock),
+            (Move::Paper, "Z") => Ok(Move::Scissors),
+            (Move::Scissors, "X") => Ok(Move::Paper),
+            (Move::Scissors, "Z") => Ok(Move::Rock),
+            (_, "Y") => Ok(self.clone()),
+            (_, _) => Err(String::from("Invalid input moves."))
+        }
+    }
+
+    fn to_score(&self) -> u64 {
+        match &self {
+            Move::Rock => 1,
+            Move::Paper => 2,
+            Move::Scissors => 3
+        }
+    }
+
+    fn fight(&self, other: &Move) -> u64 {
+        match (self, other) {
+            (Move::Paper, Move::Rock) => 6,
+            (Move::Paper, Move::Scissors) => 0,
+            (Move::Rock, Move::Paper) => 0,
+            (Move::Rock, Move::Scissors) => 6,
+            (Move::Scissors, Move::Paper) => 6,
+            (Move::Scissors, Move::Rock) => 0,
+            (_, _) => 3
+        }
     }
 }
 
-fn get_score(you: &str, me: &str) -> u64 {
-    let you = get_rps(you).expect("Invalid you");
-    let me = get_rps(me).expect("Invalid me");
-
-    let win: u64 = if (you == "Rock") & (me == "Paper") {
-        6
-    } else if (you == "Rock") & (me == "Scissors") {
-        0
-    } else if (you == "Paper") & (me == "Scissors") {
-        6
-    } else if (you == "Paper") & (me == "Rock") {
-        0
-    } else if (you == "Scissors") & (me == "Rock") {
-        6
-    } else if (you == "Scissors") & (me == "Paper") {
-        0
-    } else {
-        // It's a draw, since the only remaining cases are if the two are equal
-        3
-    };
-
-    let my_score: u64 = match &me[..] {
-        "Rock" => 1,
-        "Paper" => 2,
-        "Scissors" => 3,
-        _ => panic!("Invalid me input.")
-    };
-
-    win + my_score
+#[derive(Parser)]
+struct Cli {
+    input: Option<PathBuf>
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>>{
@@ -55,19 +67,27 @@ fn main() -> Result<(), Box<dyn std::error::Error>>{
     let contents = fs::read_to_string(path)?;
     let lines = contents.split("\n");
 
-    let mut scores: Vec<u64> = Vec::new();
+    let mut scores_naive: Vec<u64> = Vec::new();
+    let mut scores_elf: Vec<u64> = Vec::new();
     for line in lines {
         if line.is_empty() {
             continue;
         }
 
         let values: Vec<&str> = line.split_whitespace().collect();
-        scores.push(get_score(values[0], values[1]))
+        let your_move = Move::from_str(&values[0]).expect("Invalid move from you.");
+        let my_naive_move = Move::from_str(&values[1]).expect("Invalid move from me.");
+        let my_elf_move = your_move.from_outcome(&values[1]).expect("Invalid expectation");
+        scores_naive.push(
+            my_naive_move.fight(&your_move) + my_naive_move.to_score()
+        );
+ 
+        scores_elf.push(
+            my_elf_move.fight(&your_move) + my_elf_move.to_score()
+        );
     }
-
-    println!("{:?}", scores);
-
-    println!("Your total score would be {}", scores.iter().sum::<u64>());
+    println!("Your total score would be {} if you follow the naive schema.", scores_naive.iter().sum::<u64>());
+    println!("Your total score would be {} if you follow the elf schema.", scores_elf.iter().sum::<u64>());
 
     Ok(())
 } 
